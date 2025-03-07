@@ -3,32 +3,22 @@ import streamlit as st
 import plotly.express as px
 import os
 
+# 📌 Insira o ID do seu arquivo do Google Drive
+GOOGLE_DRIVE_FILE_ID = "1Acznu9BXqO3UmfZIPOqVDR1ukGwI5nvE"
+
+# 📌 Construir URL direta para download do arquivo
+CSV_URL = f"https://drive.google.com/file/d/1Acznu9BXqO3UmfZIPOqVDR1ukGwI5nvE/view?usp=sharing"
+
+# 📌 Ler o CSV diretamente do Google Drive
+try:
+    df = pd.read_csv(CSV_URL)
+    st.success("✅ Arquivo carregado com sucesso!")
+except Exception as e:
+    st.error(f"❌ Erro ao carregar o arquivo: {e}")
+    st.stop()
+
 # Configuração da Página
 st.set_page_config(page_title="Dashboard de Análise", layout="wide")
-
-# 📌 Identificar o último CSV convertido automaticamente
-arquivos_csv = [f for f in os.listdir() if f.endswith("_convertido.csv")]
-if not arquivos_csv:
-    st.error("❌ Nenhum arquivo CSV convertido encontrado.")
-    st.stop()
-arquivo_csv = max(arquivos_csv, key=os.path.getctime)
-
-# 📌 1️⃣ Ler o CSV primeiro sem definir tipos para detectar as colunas corretamente
-df_temp = pd.read_csv(arquivo_csv, low_memory=False)
-
-# 📌 2️⃣ Criar um dicionário para definir os tipos de dados das colunas
-dtype_dict = {}
-
-for coluna in df_temp.columns:
-    if coluna in ["ANO"]:  # Colunas que devem ser inteiros
-        dtype_dict[coluna] = int
-    elif coluna in ["qTDE", "valor"]:  # Colunas numéricas (float)
-        dtype_dict[coluna] = float
-    else:  # Todas as outras colunas como texto (string)
-        dtype_dict[coluna] = str
-
-# 📌 3️⃣ Ler o CSV novamente, agora aplicando os tipos corretos
-df = pd.read_csv(arquivo_csv, dtype=dtype_dict, low_memory=False)
 
 # Criar Navegação
 pagina_selecionada = st.sidebar.radio("📌 Selecione a Página", ["📊 Análise Atual", "📈 Comparação Histórica"])
@@ -95,17 +85,13 @@ elif pagina_selecionada == "📈 Comparação Histórica":
     df_exames = df[df["PROCEDIMENTO_GRUPO"] == "Exame"].groupby("ANO")["qTDE"].sum()
     df_consultas = df[df["PROCEDIMENTO_GRUPO"] == "Consulta"].groupby("ANO")["qTDE"].sum()
 
-    # Criar DataFrame alinhado para evitar problemas de índice
     df_conversao = pd.DataFrame(index=df["ANO"].unique())  
     df_conversao["Cirurgias"] = df_cirurgias
     df_conversao["Procedimentos"] = df_procedimentos
     df_conversao["Exames"] = df_exames
     df_conversao["Consultas"] = df_consultas
-
-    # Substituir NaN por zero
     df_conversao.fillna(0, inplace=True)
 
-    # Calcular as taxas de conversão
     df_conversao["Conversão de Cirurgias (%)"] = (df_conversao["Cirurgias"] / df_conversao["Consultas"]) * 100
     df_conversao["Conversão de Procedimentos (%)"] = (df_conversao["Procedimentos"] / df_conversao["Consultas"]) * 100
     df_conversao["Conversão de Exames (%)"] = (df_conversao["Exames"] / df_conversao["Consultas"]) * 100
@@ -114,7 +100,6 @@ elif pagina_selecionada == "📈 Comparação Histórica":
     df_conversao.reset_index(inplace=True)
     df_conversao.rename(columns={"index": "ANO"}, inplace=True)
 
-    # 📌 Gráfico de Taxa de Conversão com Eixo Y em Percentual
     fig_conversao = px.line(df_conversao, x="ANO", 
                             y=["Conversão de Cirurgias (%)", "Conversão de Procedimentos (%)", "Conversão de Exames (%)"], 
                             markers=True, title="Taxa de Conversão Anual (%)")
